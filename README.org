@@ -63,7 +63,7 @@ DontResize=
   the playlist window moves; when using a modern skin, nothing moves
   at all. To fix this, switch to foobar2000.
 
-- Some programs try to be too clever -- though not as clever as Winamp
-  -- and can get a bit confused after dispswitch moves them. An
+- Some programs try to be too clever - though not as clever as
+  Winamp - and can get a bit confused after dispswitch moves them. An
   example is Faststone Image Viewer.
 
