@@ -1,7 +1,6 @@
 //#define _HAS_EXCEPTIONS 0
 #define STRICT
 #define WIN32_LEAN_AND_MEAN
-#define _CRT_SECURE_NO_WARNINGS
 #pragma warning(push)
 #pragma warning(disable:4389)//warning C4389: '==' : signed/unsigned mismatch
 #pragma warning(disable:4018)//warning C4018: <operator> : signed/unsigned mismatch
@@ -9,11 +8,12 @@
 #include <windows.h>
 #include <TlHelp32.h>
 #include <shellapi.h>
-#include <atlrx.h>
 #include <vector>
 #include <algorithm>
 #include <stdio.h>
 #include <stdarg.h>
+#include "TRexpp.h"
+#include <shlwapi.h>
 #pragma warning(pop)
 
 extern const bool g_false=false;
@@ -125,17 +125,22 @@ static void AddFlag(unsigned *flags,HWND hwnd,const char *wnd_title,const char *
 	{
 		ODS(strprintf("dispswitch:     regexp is \"%s\".\n",re_text));
 
-		CAtlRegExp<> re;
-		REParseError re_err=re.Parse(re_text,FALSE);//FALSE=case-insensitive
-		if(re_err!=REPARSE_ERROR_OK)
+		const char *re_err;
+		TRex *re=trex_compile(re_text,&re_err);
+
+		if(!re)
 		{
-			MessageBox(0,strprintf("Error in regexp \"%s\", for flag %s of %s.",re_text,flag_name,exe_name),
+			MessageBox(0,strprintf("Error in regexp \"%s\", for flag %s of %s.\n\n%s",re_text,flag_name,exe_name,re_err),
 				"Regexp error",MB_OK|MB_ICONERROR);
 			return;
 		}
 
-		CAtlREMatchContext<> re_context;
-		if(!re.Match(wnd_title,&re_context))
+		TRexBool match=trex_match(re,wnd_title);
+
+		trex_free(re);
+		re=0;
+
+		if(!match)
 		{
 			ODS(strprintf("dispswitch:     no match.\n"));
 			return;

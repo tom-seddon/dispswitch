@@ -3,3 +3,8 @@
 [Dd]ebug
 [Rr]elease
 .upload
+*.vcproj.*.user
+*.ncb
+*.pdb
+*.ilk
+dispswitchd.exe
