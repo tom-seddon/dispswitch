@@ -402,29 +402,47 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR,int)
 		dr.right=fg_rect.right-fg_monitor_info.rcWork.right;
 		dr.bottom=fg_rect.bottom-fg_monitor_info.rcWork.bottom;
 
-		float left_frac,top_frac,right_frac,bottom_frac;
-		{
-			RECT local_rect=fg_rect;
-			OffsetRect(&local_rect,-fg_monitor_info.rcWork.left,-fg_monitor_info.rcWork.top);
-
-			left_frac=local_rect.left/float(GetRectWidth(fg_monitor_info.rcWork));
-			top_frac=local_rect.top/float(GetRectHeight(fg_monitor_info.rcWork));
-			right_frac=local_rect.right/float(GetRectWidth(fg_monitor_info.rcWork));
-			bottom_frac=local_rect.bottom/float(GetRectHeight(fg_monitor_info.rcWork));
-		}
-
 		if(fg_details.flags&F_DONT_RESIZE)
 		{
-			LONG w=fg_rect.right-fg_rect.left;
-			LONG h=fg_rect.bottom-fg_rect.top;
+			LONG cx=(fg_rect.left+fg_rect.right)/2-fg_monitor_info.rcWork.left;
+			LONG cy=(fg_rect.top+fg_rect.bottom)/2-fg_monitor_info.rcWork.top;
 
-			fg_rect.left=new_monitor_info.rcWork.left+dr.left;
-			fg_rect.top=new_monitor_info.rcWork.top+dr.top;
-			fg_rect.right=fg_rect.left+w;
-			fg_rect.bottom=fg_rect.top+h;
+			float tcx=cx/(float)GetRectWidth(fg_monitor_info.rcWork);
+			float tcy=cy/(float)GetRectHeight(fg_monitor_info.rcWork);
+
+			LONG fg_w=GetRectWidth(fg_rect);
+			LONG fg_h=GetRectHeight(fg_rect);
+
+			fg_rect.left=new_monitor_info.rcWork.left+LONG(tcx*GetRectWidth(new_monitor_info.rcWork)+.5f)-fg_w/2;
+			fg_rect.top=new_monitor_info.rcWork.top+LONG(tcy*GetRectHeight(new_monitor_info.rcWork)+.5f)-fg_h/2;
+
+			fg_rect.right=fg_rect.left+fg_w;
+			fg_rect.bottom=fg_rect.top+fg_h;
+
+			// don't let it go outside the work rect.
+			LONG dx=new_monitor_info.rcWork.left-fg_rect.left;
+			if(dx<0)
+				dx=0;
+
+			LONG dy=new_monitor_info.rcWork.top-fg_rect.top;
+			if(dy<0)
+				dy=0;
+
+			OffsetRect(&fg_rect,dx,dy);
 		}
 		else
 		{
+			float left_frac,top_frac,right_frac,bottom_frac;
+			{
+				RECT local_rect=fg_rect;
+				OffsetRect(&local_rect,-fg_monitor_info.rcWork.left,-fg_monitor_info.rcWork.top);
+
+				left_frac=local_rect.left/float(GetRectWidth(fg_monitor_info.rcWork));
+				top_frac=local_rect.top/float(GetRectHeight(fg_monitor_info.rcWork));
+				right_frac=local_rect.right/float(GetRectWidth(fg_monitor_info.rcWork));
+				bottom_frac=local_rect.bottom/float(GetRectHeight(fg_monitor_info.rcWork));
+			}
+
 			if(fg_details.flags&F_SIDE_RELATIVE)
 			{
 				fg_rect.left=new_monitor_info.rcWork.left+dr.left;
