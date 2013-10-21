@@ -491,7 +491,7 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR,int)
 // 		BOOL ok=MoveWindow(fg_wnd,fg_rect.left,fg_rect.top,fg_rect.right-fg_rect.left,
 // 			fg_rect.bottom-fg_rect.top,TRUE);
 		BOOL ok=SetWindowPos(fg_wnd,0,fg_rect.left,fg_rect.top,fg_rect.right-fg_rect.left,
-			fg_rect.bottom-fg_rect.top,SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER);
+			fg_rect.bottom-fg_rect.top,SWP_NOACTIVATE|SWP_NOOWNERZORDER|SWP_NOZORDER|SWP_NOCOPYBITS);
 		if(!ok)
 		{
 			DWORD err=GetLastError();
