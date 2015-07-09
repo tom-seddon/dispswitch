@@ -8,3 +8,5 @@
 *.pdb
 *.ilk
 dispswitchd.exe
+*.sdf
+*.opensdf

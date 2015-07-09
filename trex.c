@@ -5,6 +5,8 @@
 #include <setjmp.h>
 #include "trex.h"
 
+#pragma warning(disable:4706) //assignment within conditional expression
+
 #ifdef _UINCODE
 #define scisprint iswprint
 #define scstrlen wcslen
@@ -89,7 +91,7 @@ static int trex_newnode(TRex *exp, TRexNodeType type)
 	if(type == OP_EXPR)
 		n.right = exp->_nsubexpr++;
 	if(exp->_nallocated < (exp->_nsize + 1)) {
-		int oldsize = exp->_nallocated;
+		//int oldsize = exp->_nallocated;
 		exp->_nallocated *= 2;
 		exp->_nodes = (TRexNode *)realloc(exp->_nodes, exp->_nallocated * sizeof(TRexNode));
 	}
@@ -524,7 +526,7 @@ static const TRexChar *trex_matchnode(TRex* exp,TRexNode *node,const TRexChar *s
 		*str++;
 		return str;
 	}
-	return NULL;
+	//return NULL;
 }
 
 /* public api */
