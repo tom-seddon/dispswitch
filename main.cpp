@@ -34,11 +34,11 @@ extern const bool g_false = false;
 
 #define GTC\
 	do\
-		{\
+				{\
 		tick=GetTickCount()-tick;\
 		ODS(strprintf("%s(%d): tick=%lu\n",__FILE__,__LINE__,tick));\
-		}\
-			while(g_false)
+				}\
+										while(g_false)
 
 #endif
 
@@ -58,15 +58,38 @@ static const char *strprintf(const char *fmt, ...)
 	return s_buf;
 }
 
-static BOOL CALLBACK GetAllMonitorsMonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor,
-	LPARAM dwData)
-{
-	lprcMonitor, hdcMonitor;
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
 
-	std::vector<HMONITOR> *monitors = reinterpret_cast<std::vector<HMONITOR> *>(dwData);
-	monitors->push_back(hMonitor);
+struct MonitorInfo
+{
+	HMONITOR hmonitor;
+	size_t original_index;
+	MONITORINFOEX info;
+};
+
+static BOOL CALLBACK GetAllMonitorsMonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData)
+{
+	(void)hdcMonitor, (void)lprcMonitor;
+
+	auto monitors = (std::vector<MonitorInfo> *)dwData;
+
+	MonitorInfo mi;
+
+	mi.hmonitor = hMonitor;
+
+	mi.original_index = monitors->size();
+
+	mi.info.cbSize = sizeof mi.info;
+	GetMonitorInfo(mi.hmonitor, &mi.info);
+
+	monitors->emplace_back(mi);
+
 	return TRUE;
 }
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
 
 enum Flags
 {
@@ -75,6 +98,7 @@ enum Flags
 	F_TAKE_EXE = 4,
 	F_SIDE_RELATIVE = 8,
 };
+
 
 struct FlagsName
 {
@@ -300,23 +324,25 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 	GTC;
 
-	std::vector<HMONITOR> monitors;
+	std::vector<MonitorInfo> monitors;
 	EnumDisplayMonitors(0, 0, &GetAllMonitorsMonitorEnumProc, LPARAM(&monitors));
 	if (monitors.size() <= 1)
 		return 0;
 
+	std::sort(monitors.begin(), monitors.end(), [](const MonitorInfo &a, const MonitorInfo &b) { return a.info.rcWork.left < b.info.rcWork.left; });
+
 	for (unsigned i = 0; i < monitors.size(); ++i)
 	{
-		MONITORINFOEX mi;
-		mi.cbSize = sizeof mi;
-		GetMonitorInfo(monitors[i], &mi);
+		const MonitorInfo *mi = &monitors[i];
+		(void)mi;
 
 		ODS(strprintf("dispswitch: monitor %u/%u:\n", 1 + i, monitors.size()));
-		ODS(strprintf("    Device=\"%s\"\n", mi.szDevice));
-		ODS(strprintf("    MonitorRect=(%ld,%ld)-(%ld,%ld)\n", mi.rcMonitor.left,
-			mi.rcMonitor.top, mi.rcMonitor.right, mi.rcMonitor.bottom));
-		ODS(strprintf("    WorkRect=(%ld,%ld)-(%ld,%ld)\n", mi.rcWork.left,
-			mi.rcWork.top, mi.rcWork.right, mi.rcWork.bottom));
+		ODS(strprintf("    Original index: %u\n", (unsigned)mi->original_index));
+		ODS(strprintf("    Device=\"%s\"\n", mi->info.szDevice));
+		ODS(strprintf("    MonitorRect=(%ld,%ld)-(%ld,%ld)\n",
+			mi->info.rcMonitor.left, mi->info.rcMonitor.top, mi->info.rcMonitor.right, mi->info.rcMonitor.bottom));
+		ODS(strprintf("    WorkRect=(%ld,%ld)-(%ld,%ld)\n",
+			mi->info.rcWork.left, mi->info.rcWork.top, mi->info.rcWork.right, mi->info.rcWork.bottom));
 	}
 
 	//
@@ -381,48 +407,56 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 		HMONITOR fg_monitor = MonitorFromRect(&fg_rect, MONITOR_DEFAULTTOPRIMARY);
 
-		MONITORINFOEX fg_monitor_info;
-		fg_monitor_info.cbSize = sizeof fg_monitor_info;
-		GetMonitorInfo(fg_monitor, &fg_monitor_info);
+		size_t monitor_idx;
+		for (monitor_idx = 0; monitor_idx < monitors.size(); ++monitor_idx)
+		{
+			if (monitors[monitor_idx].hmonitor == fg_monitor)
+				break;
+		}
 
-		unsigned monitor_idx = std::find(monitors.begin(), monitors.end(), fg_monitor) - monitors.begin();
+		if (monitor_idx >= monitors.size())
+		{
+			// Oh dear.
+			continue;
+		}
+
+		const MONITORINFOEX *old_info = &monitors[monitor_idx].info;
+
 		++monitor_idx;
 		monitor_idx %= monitors.size();
 
-		MONITORINFOEX new_monitor_info;
-		new_monitor_info.cbSize = sizeof new_monitor_info;
-		GetMonitorInfo(monitors[monitor_idx], &new_monitor_info);
+		const MONITORINFOEX *new_info = &monitors[monitor_idx].info;
 
 		//
 		RECT dr;
-		dr.left = fg_rect.left - fg_monitor_info.rcWork.left;
-		dr.top = fg_rect.top - fg_monitor_info.rcWork.top;
-		dr.right = fg_rect.right - fg_monitor_info.rcWork.right;
-		dr.bottom = fg_rect.bottom - fg_monitor_info.rcWork.bottom;
+		dr.left = fg_rect.left - old_info->rcWork.left;
+		dr.top = fg_rect.top - old_info->rcWork.top;
+		dr.right = fg_rect.right - old_info->rcWork.right;
+		dr.bottom = fg_rect.bottom - old_info->rcWork.bottom;
 
 		if (fg_details.flags&F_DONT_RESIZE)
 		{
-			LONG cx = (fg_rect.left + fg_rect.right) / 2 - fg_monitor_info.rcWork.left;
-			LONG cy = (fg_rect.top + fg_rect.bottom) / 2 - fg_monitor_info.rcWork.top;
+			LONG cx = (fg_rect.left + fg_rect.right) / 2 - old_info->rcWork.left;
+			LONG cy = (fg_rect.top + fg_rect.bottom) / 2 - old_info->rcWork.top;
 
-			float tcx = cx / (float)GetRectWidth(fg_monitor_info.rcWork);
-			float tcy = cy / (float)GetRectHeight(fg_monitor_info.rcWork);
+			float tcx = cx / (float)GetRectWidth(old_info->rcWork);
+			float tcy = cy / (float)GetRectHeight(old_info->rcWork);
 
 			LONG fg_w = GetRectWidth(fg_rect);
 			LONG fg_h = GetRectHeight(fg_rect);
 
-			fg_rect.left = new_monitor_info.rcWork.left + LONG(tcx*GetRectWidth(new_monitor_info.rcWork) + .5f) - fg_w / 2;
-			fg_rect.top = new_monitor_info.rcWork.top + LONG(tcy*GetRectHeight(new_monitor_info.rcWork) + .5f) - fg_h / 2;
+			fg_rect.left = new_info->rcWork.left + LONG(tcx*GetRectWidth(new_info->rcWork) + .5f) - fg_w / 2;
+			fg_rect.top = new_info->rcWork.top + LONG(tcy*GetRectHeight(new_info->rcWork) + .5f) - fg_h / 2;
 
 			fg_rect.right = fg_rect.left + fg_w;
 			fg_rect.bottom = fg_rect.top + fg_h;
 
 			// don't let it go outside the work rect.
-			LONG dx = new_monitor_info.rcWork.left - fg_rect.left;
+			LONG dx = new_info->rcWork.left - fg_rect.left;
 			if (dx < 0)
 				dx = 0;
 
-			LONG dy = new_monitor_info.rcWork.top - fg_rect.top;
+			LONG dy = new_info->rcWork.top - fg_rect.top;
 			if (dy < 0)
 				dy = 0;
 
@@ -433,30 +467,30 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 			float left_frac, top_frac, right_frac, bottom_frac;
 			{
 				RECT local_rect = fg_rect;
-				OffsetRect(&local_rect, -fg_monitor_info.rcWork.left, -fg_monitor_info.rcWork.top);
+				OffsetRect(&local_rect, -old_info->rcWork.left, -old_info->rcWork.top);
 
-				left_frac = local_rect.left / float(GetRectWidth(fg_monitor_info.rcWork));
-				top_frac = local_rect.top / float(GetRectHeight(fg_monitor_info.rcWork));
-				right_frac = local_rect.right / float(GetRectWidth(fg_monitor_info.rcWork));
-				bottom_frac = local_rect.bottom / float(GetRectHeight(fg_monitor_info.rcWork));
+				left_frac = local_rect.left / float(GetRectWidth(old_info->rcWork));
+				top_frac = local_rect.top / float(GetRectHeight(old_info->rcWork));
+				right_frac = local_rect.right / float(GetRectWidth(old_info->rcWork));
+				bottom_frac = local_rect.bottom / float(GetRectHeight(old_info->rcWork));
 			}
 
 			if (fg_details.flags&F_SIDE_RELATIVE)
 			{
-				fg_rect.left = new_monitor_info.rcWork.left + dr.left;
-				fg_rect.top = new_monitor_info.rcWork.top + dr.top;
-				fg_rect.right = new_monitor_info.rcWork.right + dr.right;
-				fg_rect.bottom = new_monitor_info.rcWork.bottom + dr.bottom;
+				fg_rect.left = new_info->rcWork.left + dr.left;
+				fg_rect.top = new_info->rcWork.top + dr.top;
+				fg_rect.right = new_info->rcWork.right + dr.right;
+				fg_rect.bottom = new_info->rcWork.bottom + dr.bottom;
 			}
 			else
 			{
 				// round to nearest instead of round to zero, prevents window
 				// floating towards the origin with repeated invocations (or at
 				// least it did with the test window).
-				fg_rect.left = new_monitor_info.rcWork.left + LONG(left_frac*GetRectWidth(new_monitor_info.rcWork) + .5f);
-				fg_rect.top = new_monitor_info.rcWork.top + LONG(top_frac*GetRectHeight(new_monitor_info.rcWork) + .5f);
-				fg_rect.right = new_monitor_info.rcWork.left + LONG(right_frac*GetRectWidth(new_monitor_info.rcWork) + .5f);
-				fg_rect.bottom = new_monitor_info.rcWork.top + LONG(bottom_frac*GetRectHeight(new_monitor_info.rcWork) + .5f);
+				fg_rect.left = new_info->rcWork.left + LONG(left_frac*GetRectWidth(new_info->rcWork) + .5f);
+				fg_rect.top = new_info->rcWork.top + LONG(top_frac*GetRectHeight(new_info->rcWork) + .5f);
+				fg_rect.right = new_info->rcWork.left + LONG(right_frac*GetRectWidth(new_info->rcWork) + .5f);
+				fg_rect.bottom = new_info->rcWork.top + LONG(bottom_frac*GetRectHeight(new_info->rcWork) + .5f);
 			}
 
 			// Work out a minimum size for this window.
