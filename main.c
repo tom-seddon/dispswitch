@@ -206,7 +206,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	RECT old_rect;
 	GetWindowRect(fg, &old_rect);
 
-	HMONITOR old_hm = MonitorFromRect(&old_rect, MONITOR_DEFAULTTOPRIMARY);
+	HMONITOR old_hm = MonitorFromRect(&old_rect, MONITOR_DEFAULTTONEAREST);
 	const Monitor *om = FindMonitorByHandle(old_hm);
 	if (!om)
 		return 0;
