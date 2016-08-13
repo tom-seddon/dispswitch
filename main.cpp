@@ -42,9 +42,8 @@ extern const bool g_false = false;
 
 #endif
 
-
-static char g_ini_file_name[] = "dispswitch.ini";
-static char g_ini_path[MAX_PATH];
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
 
 static const char *strprintf(const char *fmt, ...)
 {
@@ -91,89 +90,6 @@ static BOOL CALLBACK GetAllMonitorsMonitorEnumProc(HMONITOR hMonitor, HDC hdcMon
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 
-enum Flags
-{
-	F_DONT_RESIZE = 1,
-	F_TAKE_PARENT = 2,
-	F_TAKE_EXE = 4,
-	F_SIDE_RELATIVE = 8,
-};
-
-
-struct FlagsName
-{
-	const char *name;//saves on converting everything to ...W
-	const wchar_t *wname;
-	unsigned flags;
-};
-
-#define NAME(X) X,L##X
-
-static const FlagsName g_flags_names[] =
-{
-	{ NAME("DontResize"), F_DONT_RESIZE },
-	{ NAME("TakeParent"), F_TAKE_PARENT },
-	{ NAME("TakeExe"), F_TAKE_EXE },
-	{ NAME("SideRelative"), F_SIDE_RELATIVE },
-	{ 0 },
-};
-
-static void AddFlag(unsigned *flags, HWND hwnd, const char *wnd_title, const char *exe_name,
-	const char *flag_name, unsigned flag)
-{
-	hwnd;
-
-	ODS(strprintf("dispswitch: %s: hwnd=0x%p wnd_title=\"%s\" exe_name=\"%s\" flag_name=\"%s\" flag=%u\n",
-		__FUNCTION__, hwnd, wnd_title, exe_name, flag_name, flag));
-
-	// error checking for this is really annoying!
-	static const char s_default_text[] = "\x2";//just some default string that
-	//will never(tm) appear
-	char re_text[1000];
-	GetPrivateProfileString(exe_name, flag_name, s_default_text, re_text,
-		sizeof re_text - 1, g_ini_path);
-
-	if (strcmp(re_text, s_default_text) == 0)
-	{
-		ODS(strprintf("dispswitch:     no entry.\n"));
-		return;
-	}
-
-	if (strlen(re_text) == 0)
-	{
-		ODS(strprintf("dispswitch:     no regexp.\n"));
-
-		// then set flag anyway, so it's easy to specify
-	}
-	else
-	{
-		ODS(strprintf("dispswitch:     regexp is \"%s\".\n", re_text));
-
-		const char *re_err;
-		TRex *re = trex_compile(re_text, &re_err);
-
-		if (!re)
-		{
-			MessageBox(0, strprintf("Error in regexp \"%s\", for flag %s of %s.\n\n%s", re_text, flag_name, exe_name, re_err),
-				"Regexp error", MB_OK | MB_ICONERROR);
-			return;
-		}
-
-		TRexBool match = trex_match(re, wnd_title);
-
-		trex_free(re);
-		re = 0;
-
-		if (!match)
-		{
-			ODS(strprintf("dispswitch:     no match.\n"));
-			return;
-		}
-	}
-
-	*flags |= flag;
-}
-
 static void EnumProcesses(std::vector<PROCESSENTRY32> *processes)
 {
 	processes->clear();
@@ -200,18 +116,15 @@ static void EnumProcesses(std::vector<PROCESSENTRY32> *processes)
 	}
 }
 
-static void GetExeFileForWindow(const std::vector<PROCESSENTRY32> &processes, HWND hwnd, char *exe_file)
+static void FindExeFileByProcessId(char *exe_file, DWORD process_id, const std::vector<PROCESSENTRY32> &processes)
 {
-	DWORD procid;
-	GetWindowThreadProcessId(hwnd, &procid);
-
 	strcpy(exe_file, "");
 
 	for (unsigned i = 0; i < processes.size(); ++i)
 	{
 		const PROCESSENTRY32 *pe = &processes[i];
 
-		if (pe->th32ProcessID == procid)
+		if (pe->th32ProcessID == process_id)
 		{
 			strcpy(exe_file, pe->szExeFile);
 			break;
@@ -222,12 +135,15 @@ static void GetExeFileForWindow(const std::vector<PROCESSENTRY32> &processes, HW
 struct WindowDetails
 {
 	unsigned flags;
+	DWORD process_id;
 	char exe_file[MAX_PATH];
 };
 
 static void GetWindowDetails(const std::vector<PROCESSENTRY32> &processes, HWND hwnd, WindowDetails *details)
 {
-	GetExeFileForWindow(processes, hwnd, details->exe_file);
+	GetWindowThreadProcessId(hwnd, &details->process_id);
+
+	FindExeFileByProcessId(details->exe_file, details->process_id,processes);
 
 	char exe_name[MAX_PATH];
 	strcpy(exe_name, details->exe_file);
