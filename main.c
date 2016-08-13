@@ -261,32 +261,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			new_rect.bottom = new_rect.top + minh;
 	}
 
-	// If the application is per-monitor DPI aware, it will (probably) attempt
-	// to adjust its size to cater for the new monitor. Adjust the new rect to
-	// attempt to counteract this.
-	//
-	// (A program can do anything it likes to handle this, it seems - this code
-	// here is a total guess. But it seems like the most obvious thing to do.)
-	if (dpi_awareness == PROCESS_PER_MONITOR_DPI_AWARE) {
-		HMONITOR new_hm = MonitorFromRect(&new_rect, MONITOR_DEFAULTTONULL);
-		if (new_hm) {
-			DEVICE_SCALE_FACTOR old_sf;
-			GetScaleFactorForMonitor(old_hm, &old_sf);
-
-			DEVICE_SCALE_FACTOR new_sf;
-			GetScaleFactorForMonitor(new_hm, &new_sf);
-
-			// What a strange enum.
-			double old_scale = old_sf / 100.;
-			double new_scale = new_sf / 100.;
-
-			double scale = old_scale / new_scale;
-
-			new_rect.right = new_rect.left + (LONG)(RW(new_rect) * scale + .5);
-			new_rect.bottom = new_rect.top + (LONG)(RH(new_rect) * scale + .5);
-		}
-	}
-
 	UINT oxdpi, oydpi;
 	GetDpiForMonitor(om->h, MDT_EFFECTIVE_DPI, &oxdpi, &oydpi);
 
@@ -305,6 +279,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//	DWORD flags = SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_
 
 	DWORD flags = SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_NOZORDER | SWP_NOCOPYBITS;
+
+	if (dpi_awareness == PROCESS_PER_MONITOR_DPI_AWARE && (oxdpi != nxdpi || oydpi != nydpi)) {
+		// When moving and resizing a window with SetWindowPos results in a DPI
+		// change, the new size gets adjusted, apparently under the assumption
+		// it was being measured in the original display's coordinates. No good
+		// here, because the different resolution has already been taken into
+		// account! 
+		//
+		// To avoid this, first move the window to the new monitor without
+		// resizing. This gives the program a chance to do its WM_DPICHANGE
+		// thing and settle down. Then move it to its final position.
+		//
+		// (It's probably possible to foil this with windows that straddle
+		// monitors; the logic probably uses MonitorFromRect, which this code
+		// doesn't.)
+		SetWindowPos(fg, NULL, new_rect.left, new_rect.top, -1, -1, flags | SWP_NOSIZE);
+	}
+
 	SetWindowPos(fg, NULL, new_rect.left, new_rect.top, RW(new_rect), RH(new_rect), flags);
 
 	if (was_zoomed)
