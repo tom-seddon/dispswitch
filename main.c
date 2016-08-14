@@ -1,7 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <Windows.h>
 #include <stdio.h>
-#include <ShellScalingAPI.h>
+//#include <ShellScalingAPI.h>
 #include <ctype.h>
 
 //////////////////////////////////////////////////////////////////////////
@@ -17,6 +17,126 @@ static void dprintf(const char *fmt, ...) {
 	va_end(v);
 
 	OutputDebugStringA(tmp);
+}
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+// c:\Program Files (x86)\Windows Kits\10\Include\10.0.14393.0\um\ShellScalingApi.h
+typedef enum PROCESS_DPI_AWARENESS {
+	PROCESS_DPI_UNAWARE = 0,
+	PROCESS_SYSTEM_DPI_AWARE = 1,
+	PROCESS_PER_MONITOR_DPI_AWARE = 2
+} PROCESS_DPI_AWARENESS;
+
+// c:\Program Files (x86)\Windows Kits\10\Include\10.0.14393.0\um\ShellScalingApi.h
+typedef enum MONITOR_DPI_TYPE {
+	MDT_EFFECTIVE_DPI = 0,
+	MDT_ANGULAR_DPI = 1,
+	MDT_RAW_DPI = 2,
+	MDT_DEFAULT = MDT_EFFECTIVE_DPI
+} MONITOR_DPI_TYPE;
+
+// c:\Program Files(x86)\Windows Kits\10\Include\10.0.14393.0\shared\windef.h
+typedef enum DPI_AWARENESS {
+	DPI_AWARENESS_INVALID = -1,
+	DPI_AWARENESS_UNAWARE = 0,
+	DPI_AWARENESS_SYSTEM_AWARE = 1,
+	DPI_AWARENESS_PER_MONITOR_AWARE = 2
+} DPI_AWARENESS;
+
+// c:\Program Files (x86)\Windows Kits\10\Include\10.0.14393.0\shared\windef.h
+DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+// c:\Program Files(x86)\Windows Kits\10\Include\10.0.14393.0\um\ShellScalingApi.h
+typedef HRESULT(STDAPICALLTYPE *SetProcessDpiAwarenessFn)(PROCESS_DPI_AWARENESS);
+
+// c:\Program Files(x86)\Windows Kits\10\Include\10.0.14393.0\um\WinUser.h
+typedef DPI_AWARENESS_CONTEXT(WINAPI *GetWindowDpiAwarenessContextFn)(HWND);
+
+// c:\Program Files (x86)\Windows Kits\10\Include\10.0.14393.0\um\WinUser.h
+typedef DPI_AWARENESS(WINAPI *GetAwarenessFromDpiAwarenessContextFn)(DPI_AWARENESS_CONTEXT);
+
+// c:\Program Files(x86)\Windows Kits\10\Include\10.0.14393.0\um\ShellScalingApi.h
+typedef HRESULT(STDAPICALLTYPE *GetDpiForMonitorFn)(HMONITOR, MONITOR_DPI_TYPE, UINT *, UINT *);
+
+// c:\Program Files(x86)\Windows Kits\10\Include\10.0.14393.0\um\WinUser.h
+typedef BOOL(WINAPI *PhysicalToLogicalPointForPerMonitorDPIFn)(HWND, LPPOINT);
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+static HRESULT STDAPICALLTYPE SetProcessDpiAwarenessDefault(PROCESS_DPI_AWARENESS x) {
+	(void)x;
+
+	return S_OK;
+}
+
+static DPI_AWARENESS_CONTEXT WINAPI GetWindowDpiAwarenessContextDefault(HWND h) {
+	(void)h;
+
+	return (DPI_AWARENESS_CONTEXT)1;
+}
+
+static DPI_AWARENESS WINAPI GetAwarenessFromDpiAwarenessContextDefault(DPI_AWARENESS_CONTEXT c) {
+	(void)c;
+
+	return DPI_AWARENESS_UNAWARE;
+}
+
+static HRESULT STDAPICALLTYPE GetDpiForMonitorDefault(HMONITOR hm, MONITOR_DPI_TYPE t, UINT *x, UINT *y) {
+	(void)hm, (void)t;
+
+	*x = 96;
+	*y = 96;
+	return TRUE;
+}
+
+static BOOL WINAPI PhysicalToLogicalPointForPerMonitorDPIDefault(HWND h, LPPOINT p) {
+	(void)h, (void)p;
+
+	return TRUE;
+}
+
+//////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////
+
+#define IMPORTS IMPORT(shcore,SetProcessDpiAwareness) IMPORT(user32,GetWindowDpiAwarenessContext) IMPORT(user32, GetAwarenessFromDpiAwarenessContext) IMPORT(shcore,GetDpiForMonitor) IMPORT(user32, PhysicalToLogicalPointForPerMonitorDPI)
+
+#define IMPORT(DLL,STEM) static STEM##Fn STEM;
+IMPORTS
+#undef IMPORT
+
+static void LoadImports(void)
+{
+	HMODULE shcore = LoadLibrary("shcore.dll");
+	if (!shcore)
+		goto set_defaults;
+
+	HMODULE user32 = LoadLibrary("user32.dll");
+	if (!user32)
+		goto set_defaults;
+
+#define IMPORT(DLL,STEM) STEM=(STEM##Fn)GetProcAddress(DLL,#STEM);
+	IMPORTS
+#undef IMPORT
+
+#define IMPORT(DLL,STEM) if(!STEM) goto set_defaults;
+		IMPORTS
+#undef IMPORT
+
+		dprintf("dispswitch - DPI aware.\n");
+
+	return;
+
+set_defaults:;
+	dprintf("dispswitch - not DPI aware.\n");
+#define IMPORT(DLL,STEM) STEM=&STEM##Default;
+	IMPORTS
+#undef IMPORT
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -53,13 +173,13 @@ static const char *GetDpiAwarenessString(DPI_AWARENESS a) {
 	case DPI_AWARENESS_INVALID:
 		return "INVALID";
 
-	case 	DPI_AWARENESS_UNAWARE:
+	case DPI_AWARENESS_UNAWARE:
 		return "UNAWARE";
 
-	case 	DPI_AWARENESS_SYSTEM_AWARE:
+	case DPI_AWARENESS_SYSTEM_AWARE:
 		return "SYSTEM_AWARE";
 
-	case 	DPI_AWARENESS_PER_MONITOR_AWARE:
+	case DPI_AWARENESS_PER_MONITOR_AWARE:
 		return "PER_MONITOR_AWARE";
 	}
 }
@@ -160,6 +280,8 @@ static int CompareMonitorsByLeftOfWorkRect(const void *a_, const void *b_) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	(void)hInstance, (void)hPrevInstance, (void)lpCmdLine, (void)nCmdShow;
+
+	LoadImports();
 
 	SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
