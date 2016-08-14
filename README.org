@@ -1,8 +1,6 @@
 #+OPTIONS: toc:nil num:nil author:nil email:nil creator:nil timestamp:nil
 #+TITLE: dispswitch
 
-*Requires Windows 10*
-
 =dispswitch= picks up the window that has focus, and moves it to the
 next display monitor it can find, whilst trying to roughly preserve
 the monitor-relative position and (if the window is sizeable) size. If
@@ -30,10 +28,3 @@ to.
 Use =Reload This Script= on AutoHotkey's right click menu to refresh
 everything. Then hold Windows key and tap A to move the current window
 from one monitor to another.
-
-* known bugs
-
-- Currently only supports Windows 10...
-
-- Moving between monitors with different DPI settings does work, but
-  it's probably possible to make it go wrong...
