@@ -1,6 +1,8 @@
 #+OPTIONS: toc:nil num:nil author:nil email:nil creator:nil timestamp:nil
 #+TITLE: dispswitch
 
+*Requires Windows 10*
+
 =dispswitch= picks up the window that has focus, and moves it to the
 next display monitor it can find, whilst trying to roughly preserve
 the monitor-relative position and (if the window is sizeable) size. If
@@ -8,62 +10,30 @@ you have multiple monitors, you need this program, and you need it
 NOW. It will save you lots of time.
 
 It's designed for use with a hotkey program, such as
-[[http://www.autohotkey.com/][AutoHotKey]], so that you can do this with a single keypress.
+[[http://www.autohotkey.com/][AutoHotkey]], so that you can do this with a single keypress.
 
 * download
 
-[[./dispswitch.zip][dispswitch.zip]] (program, source code, this file)
+[[https://github.com/tom-seddon/dispswitch/blob/master/dispswitch_Win32_Release.exe?raw%3Dtrue][dispswitch_Win32_Release.exe]] (from this repo)
 
-* AutoHotKey installation
+* AutoHotkey installation
 
-The official approved AutoHotKey configuration is as follows. Add this
-to your AutoHotKey INI file using the 'Edit This Script' option on
-AutoHotKey's right-click menu.
-
-#+BEGIN_EXAMPLE
-#a::Run c:\bin\dispswitch.exe
-#+END_EXAMPLE
-
-Hold Window key and tap A to move the current window from one monitor
-to another.
-
-* configuration (for advanced users)
-
-=dispswitch= can work out how to move the window based on the name of
-the program that created it. To do this, create a file called
-=dispswitch.ini= in the same place as =dispswitch.exe=.
-
-=dispswitch.ini= is just an ordinary INI file. The name of each
-section is the name of an EXE file, each entry's key is a flag
-specifying the type of movement to perform, and each entry's value a
-regular expression to match against the window title. If the window
-title matches the regular expression, or the regular expression is
-blank, that flag is used.
-
-The flags are:
-
-- DontResize :: Don't resize the window after it has been moved.
-- TakeParent :: Move the window's parent window (if any) as well.
-- TakeExe :: Move all windows owned by a program whose EXE name is the
-             same as the one for the current window.
-
-A sensible example =dispswitch.ini=, that stops command prompt windows
-being resized when they are moved:
+The official approved AutoHotkey configuration is as follows. Add this
+to your AutoHotkey INI file using =Edit This Script= on AutoHotkey's
+right click menu. Replace =c:\bin\= with wherever you saved the EXE
+to.
 
 #+BEGIN_EXAMPLE
-[cmd.exe]
-DontResize=
+#a::Run c:\bin\dispswitch_Win32_Release.exe
 #+END_EXAMPLE
 
-(This entry is already in the =dispswitch.ini= supplied.)
+Use =Reload This Script= on AutoHotkey's right click menu to refresh
+everything. Then hold Windows key and tap A to move the current window
+from one monitor to another.
 
 * known bugs
 
-- Doesn't work properly with Winamp. When using the classic skin, only
-  the playlist window moves; when using a modern skin, nothing moves
-  at all. To fix this, switch to foobar2000.
+- Currently only supports Windows 10...
 
-- Some programs try to be too clever - though not as clever as
-  Winamp - and can get a bit confused after dispswitch moves them. An
-  example is Faststone Image Viewer.
-
+- Moving between monitors with different DPI settings does work, but
+  it's probably possible to make it go wrong...
